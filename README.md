@@ -153,3 +153,10 @@ The user-facing source repository is https://github.com/iamqasimrasool/lifetrack
 - Photos: JPEG/PNG/WebP, up to six retained/new photos per entry, 8 MiB each and 24 MiB new uploads per save. D1 stores metadata; private R2 stores bytes. Authenticated photo routes check the current account and use private/no-store responses. Removing a photo from an entry detaches it; it does not permanently purge storage.
 - English, Urdu and Arabic labels, RTL support and mobile layouts. Unsaved journal navigation prompts before discarding text.
 - Regression suite also covers direction deduplication, private journal/photo access, stale versions, image validation and limits, snapshots, rollback after storage/database failure, and translation parity.
+
+## Site entry password
+The browser site requires a shared entry password before showing the dashboard or reaching data/photo APIs. This is an additional gate; it never replaces ChatGPT sign-in or per-account authorization. Existing authenticated ChatGPT tools at `/mcp` retain their separate account-scoped access.
+
+Configure `SITE_ENTRY_PASSWORD_HASH` (SHA-256 hex of a strong shared password) and `SITE_ENTRY_COOKIE_SECRET` (at least 32 random characters) as hosted secrets. Missing configuration fails closed. Neither the password nor signing secret belongs in source control. Rotate both secrets and redeploy to change the password and invalidate existing sessions.
+
+Entry uses a signed, host-only, Secure/HttpOnly/SameSite=Lax cookie for 12 hours. The header's Lock site action clears it on that browser. Password attempts are limited to 10 per IP per 15-minute window in D1, storing a hashed IP and expiring counter; cross-origin submissions are rejected. Entry pages and protected responses use private/no-store caching. Run `node scripts/test-site-gate.mjs` for gate regression checks.
