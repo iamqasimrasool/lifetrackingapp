@@ -15,7 +15,7 @@ export default function Dashboard({signedIn,displayName}:{signedIn:boolean,displ
 const [dueOnly,Q]=useState(true),[journalDirty,JD]=useState(false);
 const [lang,S]=useState<Lang>('ur'),[rows,R]=useState<any[]>([]),[date,D]=useState(today()),[period,P]=useState(1),[category,C]=useState('all'),[tab,T]=useState('direction'),[modal,M]=useState(''),[error,E]=useState(false),[loading,L]=useState(signedIn),[busy,B]=useState(false),[amount,A]=useState<Record<string,string>>({}),[notice,N]=useState(false);
 const m=messages[lang],t=labels[lang],p=planner[lang],v=vision[lang];const [editing,G]=useState<any>(null);
-useEffect(()=>{const saved=localStorage.getItem('life-language');if(saved==='en'||saved==='ur'||saved==='ar')S(saved)},[]);
+useEffect(()=>{const q=new URLSearchParams(window.location.search);if(q.get('view')==='diary')T('diary');if(/^\d{4}-\d{2}-\d{2}$/.test(q.get('date')||''))D(q.get('date')!);const saved=localStorage.getItem('life-language');if(saved==='en'||saved==='ur'||saved==='ar')S(saved)},[]);
 useEffect(()=>{document.documentElement.lang=lang;document.documentElement.dir=lang==='en'?'ltr':'rtl';localStorage.setItem('life-language',lang)},[lang]);
 async function load(){if(!signedIn)return;try{const r=await fetch('/api/tracker');if(!r.ok)throw Error();R(await r.json());E(false);}catch{E(true)}finally{L(false)}}useEffect(()=>{load()},[signedIn]);
 async function save(action:string,data:any){B(true);E(false);N(false);try{const r=await fetch('/api/tracker',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,data})});if(!r.ok)throw Error();await load();N(true);return true;}catch{E(true);return false}finally{B(false)}}

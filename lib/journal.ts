@@ -27,7 +27,7 @@ export async function saveJournal(db:any,bucket:any,owner:string,data:any,files:
  const old=await record(db,owner,'journal',data.date);const expected=Number(data.version||0);
  if(expected!==(old?.version||0))throw Error('CONFLICT');
  const item:any={id:data.date,date:data.date,version:expected+1,updated:new Date().toISOString()};
- for(const key of ['events','win','challenge','adjustment','priority','nextStep','learned','grateful','thoughts','goalProgress']){const text=String(data[key]||'');if(text.length>12000)throw Error('Entry is too long');item[key]=text}
+ for(const key of ['topPriorities','timePlan','quickTasks','events','win','challenge','adjustment','priority','nextStep','learned','grateful','thoughts','goalProgress']){const text=String(data[key]||'');if(text.length>12000)throw Error('Entry is too long');item[key]=text}
  for(const key of ['mood','energy','stress','sleep']){const n=data[key]===''||data[key]==null?null:Number(data[key]);if(n!==null&&(!Number.isFinite(n)||n< (key==='sleep'?0:1)||n>(key==='sleep'?24:5)||key!=='sleep'&&!Number.isInteger(n)))throw Error('Invalid wellbeing value');item[key]=n}
  if(!['','mostly','partly','notToday','unsure'].includes(data.alignment||''))throw Error('Invalid reflection');item.alignment=data.alignment||'';
  for(const [field,kind] of [['areaIds','area'],['goalIds','goal'],['habitIds','habit']])item[field]=await validateLinks(db,owner,kind,data[field]||[]);
