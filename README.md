@@ -160,3 +160,5 @@ The browser site requires a shared entry password before showing the dashboard o
 Configure `SITE_ENTRY_PASSWORD_HASH` (SHA-256 hex of a strong shared password) and `SITE_ENTRY_COOKIE_SECRET` (at least 32 random characters) as hosted secrets. Missing configuration fails closed. Neither the password nor signing secret belongs in source control. Rotate both secrets and redeploy to change the password and invalidate existing sessions.
 
 Entry uses a signed, host-only, Secure/HttpOnly/SameSite=Lax cookie for 12 hours. The header's Lock site action clears it on that browser. Password attempts are limited to 10 per IP per 15-minute window in D1, storing a hashed IP and expiring counter; cross-origin submissions are rejected. Entry pages and protected responses use private/no-store caching. Run `node scripts/test-site-gate.mjs` for gate regression checks.
+
+Entry form compatibility: preserve Origin with strict-origin-when-cross-origin. Older no-referrer entry forms may send a null Origin; these are accepted only with browser-controlled Sec-Fetch-Site: same-origin. Cross-site and unverified null-Origin form submissions remain rejected.

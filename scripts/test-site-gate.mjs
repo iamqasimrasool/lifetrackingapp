@@ -9,6 +9,11 @@ const post=(pass,ip='1.2.3.4',extra={})=>req('/site-entry?lang=en',{method:'POST
 for(const path of ['/','/api/tracker','/api/journal','/api/photos/a','/?_rsc=test']){const r=await mod.siteGate(req(path),env,now);assert(r);assert.equal(r.headers.get('cache-control'),'private, no-store');assert.equal(r.status,path.startsWith('/api/')?401:200)}
 for(const lang of ['en','ur','ar']){const body=await (await mod.siteGate(req('/?lang='+lang),env,now)).text();assert(body.includes('lang="'+lang+'"'));assert(!body.includes(password))}
 assert.equal((await mod.siteGate(post('wrong'),env,now)).status,401);
+assert.equal((await mod.siteGate(req('/'),env,now)).headers.get('referrer-policy'),'strict-origin-when-cross-origin');
+assert.equal((await mod.siteGate(post(password,'7.7.7.7',{origin:'null','sec-fetch-site':'same-origin'}),env,now)).status,303);
+assert.equal((await mod.siteGate(post(password,'7.7.7.7',{origin:'null','sec-fetch-site':'cross-site'}),env,now)).status,403);
+assert.equal((await mod.siteGate(post(password,'7.7.7.7',{origin:'null'}),env,now)).status,403);
+assert.equal((await mod.siteGate(req('/site-entry',{method:'POST',headers:{'sec-fetch-site':'same-origin'},body:new URLSearchParams({password})}),env,now)).status,303);
 assert.equal((await mod.siteGate(post(password,'2.2.2.2',{origin:'https://other.test'}),env,now)).status,403);
 assert.equal((await mod.siteGate(req('/'),{},now)).status,503);
 const success=await mod.siteGate(post(password),env,now);assert.equal(success.status,303);assert.equal(success.headers.get('location'),'/');

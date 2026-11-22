@@ -1,6 +1,6 @@
 // Shared entry gate, independent of account authentication and per-user data ownership.
 const COOKIE='__Host-life_entry',SESSION_SECONDS=12*60*60,WINDOW_MS=15*60*1000,MAX_ATTEMPTS=10;
-const headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'};
+const headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin'};
 const encoder=new TextEncoder();
 const hex=(bytes:ArrayBuffer)=>Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');
 export const sha256=async(value:string)=>hex(await crypto.subtle.digest('SHA-256',encoder.encode(value)));
@@ -29,6 +29,12 @@ async function consumeAttempt(db:any,ip:string,now:number){
  const row=await db.prepare("INSERT INTO records(id,owner,kind,payload) VALUES(?,?,'entry_limit',?) ON CONFLICT(id) DO UPDATE SET payload=json_set(records.payload,'$.attempts',json_extract(records.payload,'$.attempts')+1) RETURNING payload").bind(id,owner,JSON.stringify({attempts:1,expires:(window+1)*WINDOW_MS})).first();
  return JSON.parse(row.payload).attempts<=MAX_ATTEMPTS;
 }
+// Legacy entry pages used no-referrer, so browsers send Origin: null on their POST.
+// Fetch Metadata is browser-controlled; permit that case only for same-origin requests.
+export function sameOriginForm(request:Request,url:URL){
+ const origin=request.headers.get('origin');
+ return origin===url.origin||((origin===null||origin==='null')&&request.headers.get('sec-fetch-site')==='same-origin');
+}
 export async function siteGate(request:Request,env:any,now=Date.now()):Promise<Response|null>{
  const url=new URL(request.url),lang=url.searchParams.get('lang')||'ur';
  // The existing ChatGPT tool endpoint retains its authenticated, account-scoped access.
@@ -38,12 +44,12 @@ export async function siteGate(request:Request,env:any,now=Date.now()):Promise<R
  if(typeof secret!=='string'||secret.length<32||typeof hash!=='string'||!/^[a-f0-9]{64}$/.test(hash))return gatePage(lang,'offline',503);
  const cookie=(request.headers.get('cookie')||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(COOKIE+'='))?.slice(COOKIE.length+1)||'';
  if(url.pathname==='/site-entry/logout'&&request.method==='POST'){
- if(request.headers.get('origin')!==url.origin)return new Response('Forbidden',{status:403,headers});
+ if(!sameOriginForm(request,url))return new Response('Forbidden',{status:403,headers});
  return new Response(null,{status:303,headers:{...headers,Location:'/', 'Set-Cookie':`${COOKIE}=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax`}});
  }
  if(await validSession(cookie,secret,now))return null;
  if(url.pathname==='/site-entry'&&request.method==='POST'){
- if(request.headers.get('origin')!==url.origin)return new Response('Forbidden',{status:403,headers});
+ if(!sameOriginForm(request,url))return new Response('Forbidden',{status:403,headers});
  try{
  if(!await consumeAttempt(env.DB,request.headers.get('CF-Connecting-IP')||'unknown',now))return gatePage(lang,'limited',429);
  const form=new URLSearchParams(await limitedText(request)),password=form.get('password')||'';
