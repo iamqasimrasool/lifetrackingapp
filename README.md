@@ -134,7 +134,7 @@ The portable build runs Vinext directly without a host `timeout` command. The ma
 
 
 ## Life planning and daily tracking
-- Life areas can be added, renamed, removed and restored per account. Removal hides an area from active lists while preserving existing goals, links, habits and history. Removed areas cannot be selected for new goals. Stable IDs preserve existing goal links.
+- Life areas can be added and renamed per account but cannot be removed. Any areas hidden by older versions can still be restored. Stable IDs preserve existing goal links.
 - A goal uses `areaIds` (one or more); a habit uses `goalIds` (zero or more until goals exist).
 - Habits support daily, weekly, selected weekdays, every two weeks, and monthly schedules. Weekly/every two weeks repeat on the start date’s weekday. Monthly dates 29–31 clamp to the last day of shorter months.
 - Schedule and target history is retained in `plans`, effective from the date edited. Legacy habits remain daily. Dates use Asia/Riyadh.
@@ -145,3 +145,11 @@ The portable build runs Vinext directly without a host `timeout` command. The ma
 
 ## Source repository
 The user-facing source repository is https://github.com/iamqasimrasool/lifetrackingapp. Hosted releases continue through the existing Sites project. A GitHub commit by itself does not deploy the site. Keep tested source changes synchronized with the Sites source before publication.
+
+## North Star & Journal release
+- Life direction is the default screen. Set a North Star statement and choose contributing life areas; goals connect through their selected areas and habits through their goal links.
+- Each area shows its goal and unique habit count. Expand an area, goal or habit to inspect its relationships. Overall contributing totals count each record once, even with multiple links. Connections express intent, not measured causation or an automatic North Star percentage.
+- Daily journal supports wellbeing, events, goal progress, optional area/goal/habit links, existing daily habit results, reflection, tomorrow's focus and optional deeper reflection. Save one editable entry per date; concurrent edits are protected by versions. The North Star is snapshotted on first save.
+- Photos: JPEG/PNG/WebP, up to six retained/new photos per entry, 8 MiB each and 24 MiB new uploads per save. D1 stores metadata; private R2 stores bytes. Authenticated photo routes check the current account and use private/no-store responses. Removing a photo from an entry detaches it; it does not permanently purge storage.
+- English, Urdu and Arabic labels, RTL support and mobile layouts. Unsaved journal navigation prompts before discarding text.
+- Regression suite also covers direction deduplication, private journal/photo access, stale versions, image validation and limits, snapshots, rollback after storage/database failure, and translation parity.

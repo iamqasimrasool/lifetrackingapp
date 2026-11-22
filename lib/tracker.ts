@@ -1,9 +1,12 @@
 import {env} from 'cloudflare:workers';
 import {normalizeSchedule,dateOK} from './schedule';
 import {builtinAreas} from './areas';
+import {saveNorthStar,saveJournal} from './journal';
 export async function run(owner:string, action:string, data:any={}){
  const db=env.DB!;
  if(!owner)throw Error('Sign in required');
+ if(action==='northstar')return saveNorthStar(db,owner,data);
+ if(action==='journal')return saveJournal(db,env.BUCKET,owner,data);
  const now=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Riyadh'}).format(new Date());
  const get=async(kind:string,id:string)=>{const row:any=await db.prepare('SELECT payload FROM records WHERE id=? AND owner=? AND kind=?').bind(owner+':'+kind+':'+id,owner,kind).first();return row?JSON.parse(row.payload):null};
  const put=async(kind:string,item:any)=>{await db.prepare('INSERT INTO records(id,owner,kind,payload) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').bind(owner+':'+kind+':'+item.id,owner,kind,JSON.stringify(item)).run();return item};
@@ -11,10 +14,7 @@ export async function run(owner:string, action:string, data:any={}){
  const id=String(data.id|| (action==='area'?crypto.randomUUID():''));if(!id||id.length>180)throw Error('Invalid area ID');
  const existing=await get('area',id);
  if(action==='area_restore'){if(!existing)throw Error('Life area not found');return put('area',{...existing,removed:false})}
- if(action==='area_remove'){
- if(!existing&&!builtinAreas.includes(id))throw Error('Life area not found');
- return put('area',{...(existing||{id}),removed:true});
- }
+ if(action==='area_remove')throw Error('Life areas cannot be removed');
  if(existing?.removed)throw Error('Restore this area before editing');
  if(!String(data.name||'').trim())throw Error('Name required');return put('area',{...(existing||{}),id,name:String(data.name).trim().slice(0,120),removed:false});
  }

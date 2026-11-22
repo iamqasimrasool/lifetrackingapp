@@ -1,0 +1,45 @@
+'use client';
+import {useState,useEffect,useRef} from 'react';
+import {BookOpen,Camera,LockKeyhole,Save,X,CheckCircle2,Loader2} from 'lucide-react';
+import {vision} from './vision-i18n';
+import {Lang,primaryAreas} from './i18n';
+import {scheduled,dayState,planOn} from '../lib/schedule';
+import {activeAreaIds} from '../lib/areas';
+import {planner} from './planner-i18n';
+const now=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Riyadh'}).format(new Date());
+export default function Diary({rows,lang,date,onDate,cat,signedIn,reload,onSaved,onDirty}:any){
+ const v=vision[lang as Lang],p=planner[lang as Lang],entry=rows.find((x:any)=>x.kind==='journal'&&x.date===date),north=rows.find((x:any)=>x.kind==='northstar');
+ const allEntries=rows.filter((x:any)=>x.kind==='journal').sort((a:any,b:any)=>b.date.localeCompare(a.date));
+ const [files,F]=useState<{file:File,url:string}[]>([]),[photoIds,PI]=useState<string[]>(entry?.photoIds||[]),[busy,B]=useState(false),[dirty,D]=useState(false),[message,M]=useState(''),[error,E]=useState(''),[limit,L]=useState(15);
+ const urls=useRef(new Set<string>());const mark=(d:boolean)=>{D(d);onDirty(d)};
+ useEffect(()=>{for(const url of urls.current)URL.revokeObjectURL(url);urls.current.clear();F([]);PI(entry?.photoIds||[]);mark(false);E('');M('')},[date,entry?.version]);
+ useEffect(()=>()=>{for(const url of urls.current)URL.revokeObjectURL(url);onDirty(false)},[]);
+ useEffect(()=>{const handler=(e:BeforeUnloadEvent)=>{if(dirty){e.preventDefault();e.returnValue=''}};window.addEventListener('beforeunload',handler);return()=>window.removeEventListener('beforeunload',handler)},[dirty]);
+ const chooseDate=(d:string)=>{if(d&&d!==date&&(!dirty||confirm(v.dirty)))onDate(d)};
+ const addFiles=(newFiles:File[])=>{E('');if(files.length+photoIds.length+newFiles.length>6||newFiles.some(f=>f.size>8*1024*1024)||[...files.map(f=>f.file),...newFiles].reduce((n,f)=>n+f.size,0)>24*1024*1024){E(v.photoLimit);return}if(newFiles.some(f=>!['image/jpeg','image/png','image/webp'].includes(f.type))){E(v.photoHint);return}F(old=>[...old,...newFiles.map(file=>{const url=URL.createObjectURL(file);urls.current.add(url);return {file,url}})]);mark(true)};
+ const habits=rows.filter((x:any)=>x.kind==='habit'),goals=rows.filter((x:any)=>x.kind==='goal');
+ const due=habits.filter((h:any)=>scheduled(h,date));
+ const fields=['events','goalProgress','win','challenge','adjustment','priority','nextStep','learned','grateful','thoughts'];
+ const field=(key:string,lines=2)=><label key={key}>{v[key as keyof typeof v] as string}<textarea name={key} rows={lines} maxLength={12000} defaultValue={entry?.[key]||''} dir="auto" placeholder={key==='events'?v.eventsHint:undefined}/></label>;
+ const links=(name:string,title:string,items:any[],selected:string[]=[])=><fieldset><legend>{title}</legend>{items.map((x:any)=><label className="choice-line" key={x.id}><input type="checkbox" name={name} value={x.id} defaultChecked={selected.includes(x.id)}/><span dir="auto">{x.name}</span></label>)}</fieldset>;
+ async function submit(e:any){e.preventDefault();E('');M('');B(true);const f=new FormData(e.currentTarget),data:any={date,version:entry?.version||0,photoIds};
+ for(const key of [...fields,'mood','energy','stress','sleep','alignment'])data[key]=f.get(key)||'';
+ for(const key of ['areaIds','goalIds','habitIds'])data[key]=f.getAll(key);
+ const body=new FormData();body.set('entry',JSON.stringify(data));for(const {file} of files)body.append('photos',file);
+ try{const res=await fetch('/api/journal',{method:'POST',body});if(!res.ok){const result:any=await res.json();throw Error(result.error==='CONFLICT'?'CONFLICT':'SAVE_ERROR')}const saved:any=await res.json();onSaved(saved);mark(false);M(v.saved);await reload()}catch(err){E(err instanceof Error&&err.message==='CONFLICT'?v.conflict:v.saveError)}finally{B(false)}
+ }
+ return <div className="diary-page"><div className="diary-heading"><div><h2><BookOpen size={23}/> {v.diary}</h2><p>{v.journalHint}</p></div><label>{v.date}<input aria-label={v.date} type="date" value={date} disabled={busy} onChange={e=>chooseDate(e.target.value)}/></label></div>
+ <p className="journal-private"><LockKeyhole size={16}/>{v.private}</p>
+ <form key={date+':'+(entry?.version||0)} onSubmit={submit} onChange={()=>mark(true)} className="diary-form">
+ <section className="journal-north"><span>{entry?v.northSnapshot:v.north}</span><p dir="auto">{(entry?.northStarSnapshot??north?.statement)||v.noNorth}</p></section>
+ <section className="journal-section"><h3>{v.wellbeing}</h3><div className="wellbeing-fields">{['mood','energy','stress'].map(key=><label key={key}>{v[key as 'mood']}<select name={key} defaultValue={entry?.[key]??''}><option value="">{v.optional}</option>{[1,2,3,4,5].map(n=><option key={n} value={n}>{n}{key==='mood'?' · '+v.moodLabels[n-1]:''}</option>)}</select></label>)}<label>{v.sleep}<input name="sleep" type="number" min={0} max={24} step="0.25" placeholder={v.optional} defaultValue={entry?.sleep??''}/></label></div></section>
+ <section className="journal-section">{field('events',5)}{field('goalProgress',2)}<details className="journal-links"><summary>{v.links}</summary><div className="journal-link-grid">{links('areaIds',v.relatedAreas,[...new Set([...activeAreaIds(rows,primaryAreas),...(entry?.areaIds||[])])].map(id=>({id,name:cat(id)})),entry?.areaIds)}{links('goalIds',v.relatedGoals,goals,entry?.goalIds)}{links('habitIds',v.relatedHabits,habits,entry?.habitIds)}</div></details></section>
+ <section className="journal-section"><h3>{v.habitResults}</h3><p className="field-help">{v.habitHint}</p><div className="journal-habits">{due.map((h:any)=>{const actual=rows.find((x:any)=>x.kind==='entry'&&x.habitId===h.id&&x.date===date),state=dayState(h,actual,date,now());return <article key={h.id}><b dir="auto">{h.name}</b><span>{actual?.value??'—'} / {planOn(h,date).target} {h.unit}</span><small className={'journal-status '+state}>{p[state]}</small></article>})}{!due.length&&<p>{p.noDue}</p>}</div></section>
+ <section className="journal-section"><h3>{v.reflection}</h3>{field('win')}{field('challenge')}<label>{v.alignment}<select name="alignment" defaultValue={entry?.alignment||''}><option value="">{v.optional}</option>{['mostly','partly','notToday','unsure'].map((key,i)=><option key={key} value={key}>{v.alignmentLabels[i]}</option>)}</select></label>{field('adjustment')}</section>
+ <section className="journal-section"><h3>{v.tomorrow}</h3>{field('priority')}{field('nextStep')}<details><summary>{v.deeper}</summary>{field('learned')}{field('grateful')}{field('thoughts')}</details></section>
+ <section className="journal-section"><h3><Camera size={20}/> {v.photos} <small>{photoIds.length+files.length}/6</small></h3><p className="field-help">{v.photoHint}</p><div className="journal-photos">{photoIds.map(id=>{const meta=rows.find((x:any)=>x.kind==='photo'&&x.id===id);return <figure key={id}><a href={'/api/photos/'+id} target="_blank" rel="noreferrer"><img src={'/api/photos/'+id} alt={meta?.name||v.photos} loading="lazy"/></a><button type="button" aria-label={v.removePhoto+' · '+(meta?.name||'')} onClick={()=>{PI(ids=>ids.filter(x=>x!==id));mark(true)}} disabled={busy}><X size={16}/></button></figure>})}{files.map(({file,url},i)=><figure key={url}><img src={url} alt={file.name}/><button type="button" aria-label={v.removePhoto+' · '+file.name} onClick={()=>{URL.revokeObjectURL(url);urls.current.delete(url);F(old=>old.filter((_,j)=>j!==i));mark(true)}} disabled={busy}><X size={16}/></button></figure>)}</div><label className="photo-picker"><Camera size={18}/>{v.addPhotos}<input aria-label={v.addPhotos} type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={!signedIn||busy||photoIds.length+files.length>=6} onChange={e=>{addFiles(Array.from(e.target.files||[]));e.target.value=''}}/></label></section>
+ <div className="journal-savebar"><button className="primary" disabled={!signedIn||busy}>{busy?<Loader2 className="spin" size={18}/>:<Save size={18}/>} {busy?v.saving:v.saveJournal}</button><span role="status">{message|| (dirty?v.unsavedStatus:entry?v.savedStatus:'')}</span></div>{message&&<p className="journal-success" role="status"><CheckCircle2 size={17}/>{message}</p>}{error&&<div className="error" role="alert"><p>{error}</p>{error===v.conflict&&<button type="button" className="outline" onClick={()=>{if(confirm(v.dirty))reload()}}>{v.reload}</button>}</div>}
+ </form>
+ <section className="journal-archive"><h2>{v.pastEntries} <small>{allEntries.length}</small></h2>{!allEntries.length?<p>{v.emptyJournal}</p>:<div className="journal-entry-list">{allEntries.slice(0,limit).map((j:any)=><button key={j.date} onClick={()=>chooseDate(j.date)} disabled={busy} className={date===j.date?'selected':''}><b>{j.date}</b><span dir="auto">{(j.events||j.win||j.priority||'—').slice(0,110)}</span>{j.photoIds?.length>0&&<small><Camera size={14}/> {j.photoIds.length}</small>}<span>{v.editEntry}</span></button>)}</div>}{allEntries.length>limit&&<button className="outline" onClick={()=>L(limit+15)}>{v.pastEntries} +15</button>}</section>
+ </div>
+}
